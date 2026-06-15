@@ -1,0 +1,85 @@
+@import "tailwindcss";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+@theme {
+  --font-sans: 'Plus Jakarta Sans', sans-serif;
+  
+  --color-primary-50: #EFF6FF;
+  --color-primary-100: #DBEAFE;
+  --color-primary-200: #BFDBFE;
+  --color-primary-300: #93C5FD;
+  --color-primary-400: #60A5FA;
+  --color-primary-500: #3B82F6;
+  --color-primary-600: #2563EB;
+  --color-primary-700: #1D4ED8;
+  --color-primary-800: #1E40AF;
+  --color-primary-900: #1E3A8A;
+  
+  --color-gray-50: #F9FAFB;
+  --color-gray-100: #F3F4F6;
+  --color-gray-200: #E5E7EB;
+  --color-gray-300: #D1D5DB;
+  --color-gray-400: #9CA3AF;
+  --color-gray-500: #6B7280;
+  --color-gray-600: #4B5563;
+  --color-gray-700: #374151;
+  --color-gray-800: #1F2937;
+  --color-gray-900: #111827;
+
+  --color-success: #10B981;
+  --color-warning: #F59E0B;
+  --color-error: #EF4444;
+  --color-info: #3B82F6;
+  
+  --radius-btn: 8px;
+  --radius-input: 8px;
+  --radius-card: 12px;
+  --radius-modal: 16px;
+  --radius-dropdown: 8px;
+
+  --shadow-card: 0 1px 3px rgba(0,0,0,0.08);
+  --shadow-modal: 0 10px 25px rgba(0,0,0,0.12);
+
+  /* Semantic Theme Variables mapped to CSS Variables */
+  --color-bg-page: var(--bg-page);
+  --color-text-primary: var(--text-primary);
+  --color-text-secondary: var(--text-secondary);
+  --color-bg-card: var(--bg-card);
+  --color-border-main: var(--border-main);
+  --color-bg-sidebar: var(--bg-sidebar);
+  --color-input-bg: var(--input-bg);
+  --color-input-border: var(--input-border);
+}
+
+:root {
+  --bg-page: #F9FAFB;
+  --text-primary: #111827;
+  --text-secondary: #6B7280;
+  --bg-card: #FFFFFF;
+  --border-main: #E5E7EB;
+  --bg-sidebar: #FFFFFF;
+  --input-bg: #FFFFFF;
+  --input-border: #E5E7EB;
+}
+
+.dark {
+  --bg-page: #0B0F19; /* Premium deep dark gray-blue background */
+  --text-primary: #F3F4F6; /* Light gray for body text */
+  --text-secondary: #9CA3AF; /* Muted gray for subtitles */
+  --bg-card: #151B2C; /* Dark card background */
+  --border-main: #242F48; /* Premium slate/dark-blue border */
+  --bg-sidebar: #111625; /* Darker navy for sidebar */
+  --input-bg: #1B2338; /* Form elements background */
+  --input-border: #2C3A57; /* Form elements border */
+}
+
+@layer base {
+  body {
+    background-color: var(--bg-page);
+    color: var(--text-primary);
+    font-family: 'Plus Jakarta Sans', sans-serif;
+    transition: background-color 0.2s ease, color 0.2s ease;
+  }
+}
+
