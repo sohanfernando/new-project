@@ -3,6 +3,8 @@ import { api } from '../services/api';
 import { Card, Button, InputField, ConfirmModal } from '../components/UIComponents';
 import { Edit, Trash, X, Check, Award, GripVertical } from 'lucide-react';
 
+const BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
+
 export const ManageRoles: React.FC = () => {
   const [roles, setRoles] = useState<{ id: number; name: string }[]>([]);
   const [loading, setLoading] = useState(true);
@@ -122,7 +124,7 @@ export const ManageRoles: React.FC = () => {
     try {
       // Direct DELETE request
       const token = localStorage.getItem('token');
-      const res = await fetch(`http://localhost:8000/api/roles/${id}`, {
+      const res = await fetch(`${BASE_URL}/api/roles/${id}`, {
         method: 'DELETE',
         headers: {
           'Authorization': `Bearer ${token}`

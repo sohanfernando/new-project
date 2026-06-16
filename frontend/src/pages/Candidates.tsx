@@ -7,6 +7,8 @@ import {
 } from 'lucide-react';
 import { Card, Button, InputField, SelectField, ConfirmModal } from '../components/UIComponents';
 
+const BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
+
 export const Candidates: React.FC = () => {
   const [candidates, setCandidates] = useState<CandidateProfile[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
@@ -172,7 +174,7 @@ export const Candidates: React.FC = () => {
     setError(null);
     try {
       const token = localStorage.getItem('token');
-      const res = await fetch(`http://localhost:8000/api/cv/candidates/${id}`, {
+      const res = await fetch(`${BASE_URL}/api/cv/candidates/${id}`, {
         method: 'DELETE',
         headers: {
           'Authorization': `Bearer ${token}`

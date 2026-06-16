@@ -6,6 +6,8 @@ import {
 } from 'lucide-react';
 import { Card, Button, InputField, SelectField, ConfirmModal } from '../components/UIComponents';
 
+const BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
+
 export const ExtractCV: React.FC = () => {
   const [uploading, setUploading] = useState<boolean>(false);
   const [saving, setSaving] = useState<boolean>(false);
@@ -266,7 +268,7 @@ export const ExtractCV: React.FC = () => {
     setError(null);
     try {
       const token = localStorage.getItem('token');
-      const res = await fetch(`http://localhost:8000/api/roles/${id}`, {
+      const res = await fetch(`${BASE_URL}/api/roles/${id}`, {
         method: 'DELETE',
         headers: {
           'Authorization': `Bearer ${token}`
