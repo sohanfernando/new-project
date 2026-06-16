@@ -1,4 +1,4 @@
-const BASE_URL = 'http://localhost:8000';
+const BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
 
 interface RequestOptions extends RequestInit {
   token?: string | null;
@@ -7,11 +7,11 @@ interface RequestOptions extends RequestInit {
 async function request<T>(path: string, options: RequestOptions = {}): Promise<T> {
   const token = localStorage.getItem('token');
   const headers = new Headers(options.headers || {});
-  
+
   if (token && !headers.has('Authorization')) {
     headers.set('Authorization', `Bearer ${token}`);
   }
-  
+
   // Do not set Content-Type header if sending FormData (browser handles boundaries automatically)
   if (!(options.body instanceof FormData) && !headers.has('Content-Type')) {
     headers.set('Content-Type', 'application/json');
@@ -77,7 +77,7 @@ export const api = {
       try {
         const errorJson = await response.json();
         errorMessage = errorJson.detail || errorMessage;
-      } catch {}
+      } catch { }
       throw new Error(errorMessage);
     }
 

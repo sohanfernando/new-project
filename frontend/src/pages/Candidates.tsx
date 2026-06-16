@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { api } from '../services/api';
 import { CandidateProfile } from '../types';
 import {
-  Search, Mail, Phone, Trash, Edit, X, Eye, AlertCircle, Filter, MapPin, FileText, Star,
+  Search, Mail, Phone, Trash, Edit, X, Eye, AlertCircle, MapPin, FileText, Star,
   Copy, Brain, HelpCircle, RefreshCw, ChevronDown
 } from 'lucide-react';
 import { Card, Button, InputField, SelectField, ConfirmModal } from '../components/UIComponents';
