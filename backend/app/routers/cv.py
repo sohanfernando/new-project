@@ -192,6 +192,7 @@ def get_candidates(
     role_id: Optional[int] = Query(None),
     level_id: Optional[int] = Query(None),
     skill: Optional[str] = Query(None),
+    is_strong: Optional[bool] = Query(None),
     db: Session = Depends(get_db),
     current_user=Depends(get_current_user)
 ):
@@ -204,6 +205,8 @@ def get_candidates(
         query = query.filter(CandidateProfile.level_id == level_id)
     if skill:
         query = query.filter(CandidateProfile.skills.like(f"%{skill}%"))
+    if is_strong is not None:
+        query = query.filter(CandidateProfile.is_strong == is_strong)
     if q:
         search_filter = f"%{q}%"
         query = query.filter(

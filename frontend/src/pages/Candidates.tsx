@@ -23,6 +23,7 @@ export const Candidates: React.FC = () => {
   const [selectedRole, setSelectedRole] = useState('');
   const [selectedLevel, setSelectedLevel] = useState('');
   const [selectedSkill, setSelectedSkill] = useState('');
+  const [selectedIsStrong, setSelectedIsStrong] = useState<boolean>(false);
 
   // Modals
   const [viewCandidate, setViewCandidate] = useState<CandidateProfile | null>(null);
@@ -121,7 +122,7 @@ export const Candidates: React.FC = () => {
     }, 250);
 
     return () => clearTimeout(delayDebounceFn);
-  }, [searchQuery, selectedRole, selectedLevel, selectedSkill]);
+  }, [searchQuery, selectedRole, selectedLevel, selectedSkill, selectedIsStrong]);
 
   const fetchOptions = async () => {
     try {
@@ -141,6 +142,7 @@ export const Candidates: React.FC = () => {
       if (selectedRole) params.append('role_id', selectedRole);
       if (selectedLevel) params.append('level_id', selectedLevel);
       if (selectedSkill) params.append('skill', selectedSkill);
+      if (selectedIsStrong) params.append('is_strong', 'true');
 
       const data = await api.get<CandidateProfile[]>(`/api/cv/candidates?${params.toString()}`);
       setCandidates(data);
@@ -161,6 +163,7 @@ export const Candidates: React.FC = () => {
     setSelectedRole('');
     setSelectedLevel('');
     setSelectedSkill('');
+    setSelectedIsStrong(false);
     setTimeout(() => {
       fetchCandidates();
     }, 0);
@@ -273,7 +276,12 @@ export const Candidates: React.FC = () => {
     return 'bg-gray-50 dark:bg-bg-page/50 border border-gray-100 dark:border-border-main text-gray-700 dark:text-text-secondary';
   };
 
-  const isFiltered = searchQuery !== '' || selectedRole !== '' || selectedLevel !== '' || selectedSkill !== '';
+  const isFiltered = searchQuery !== '' || selectedRole !== '' || selectedLevel !== '' || selectedSkill !== '' || selectedIsStrong;
+
+  const displayedCandidates = candidates.filter(cand => {
+    if (selectedIsStrong && !cand.is_strong) return false;
+    return true;
+  });
 
   return (
     <div>
@@ -328,8 +336,21 @@ export const Candidates: React.FC = () => {
               />
             </div>
 
+            <div className="sm:col-span-2 lg:col-span-1 mb-4">
+              <label className="block text-sm font-medium text-text-secondary mb-1 leading-5">&nbsp;</label>
+              <label className="inline-flex items-center gap-2 px-3 py-2 border border-input-border rounded-input bg-input-bg hover:bg-input-bg/70 cursor-pointer select-none w-full transition-all duration-200 h-[38px]">
+                <input
+                  type="checkbox"
+                  checked={selectedIsStrong}
+                  onChange={(e) => setSelectedIsStrong(e.target.checked)}
+                  className="w-4 h-4 text-primary-600 bg-input-bg border border-input-border rounded focus:ring-primary-500 cursor-pointer"
+                />
+                <span className="text-xs font-bold text-text-primary">Strong Candidates Only</span>
+              </label>
+            </div>
+
             {isFiltered && (
-              <div className="sm:col-span-2 lg:col-span-3 flex justify-end gap-2 mb-4">
+              <div className="sm:col-span-2 lg:col-span-2 flex justify-end gap-2 mb-4">
                 <Button type="button" variant="secondary" onClick={handleResetFilters} className="py-2.5 px-4 flex gap-1 animate-fade-in">
                   <X size={16} /> Clear Filters
                 </Button>
@@ -352,10 +373,10 @@ export const Candidates: React.FC = () => {
       ) : (
         <>
           <div className="mb-4 text-sm text-text-secondary">
-            Total Candidates Found: <span className="font-semibold text-text-primary">{candidates.length}</span>
+            Total Candidates Found: <span className="font-semibold text-text-primary">{displayedCandidates.length}</span>
           </div>
 
-          {candidates.length === 0 ? (
+          {displayedCandidates.length === 0 ? (
             <div className="text-center py-20 bg-bg-card border border-border-main rounded-card p-6 flex flex-col items-center">
               <AlertCircle size={44} className="text-text-secondary/50 mb-2" />
               <h3 className="text-base font-semibold text-text-primary mb-1">No Profiles Matching Filters</h3>
@@ -365,7 +386,7 @@ export const Candidates: React.FC = () => {
             </div>
           ) : (
             <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
-              {candidates.map((cand) => (
+              {displayedCandidates.map((cand) => (
                 <Card
                   key={cand.id}
                   className="hover:border-primary-500 hover:shadow-lg transition-all duration-300 flex flex-col justify-between relative"

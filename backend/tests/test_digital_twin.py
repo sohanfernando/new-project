@@ -17,7 +17,8 @@ def test_heuristic_twin_fallback():
     assert "scenario" in twin["interview_questions"]
     assert "behavioral" in twin["interview_questions"]
 
-def test_generate_digital_twin_only_fallback():
+def test_generate_digital_twin_only_fallback(monkeypatch):
+    monkeypatch.setattr("app.services.cv_parser.GEMINI_API_KEY", None)
     cv_text = "Experienced software developer using Python and SQL. Passionate about AI."
     twin = generate_digital_twin_only(cv_text, target_role="Software Engineer", target_level="Senior")
     
