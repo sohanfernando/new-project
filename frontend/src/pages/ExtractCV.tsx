@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { api } from '../services/api';
+import { api, ApiError } from '../services/api';
 import { CandidateProfile } from '../types';
 import { 
   Upload, Trash, Check, X, AlertCircle, User, Award
@@ -210,7 +210,7 @@ export const ExtractCV: React.FC = () => {
         .map((s) => s.trim())
         .filter(Boolean);
 
-      await api.post('/api/cv/candidates', {
+      const payload = {
         full_name: extractedName,
         email: extractedEmail,
         phone: extractedPhone,
@@ -224,7 +224,7 @@ export const ExtractCV: React.FC = () => {
         level_id: Number(selectedLevelId),
         cv_text: extractedCvText,
         cv_file_path: extractedCvFilePath,
-        
+
         // Digital twin fields
         predicted_level: extractedPredictedLevel,
         level_confidence: extractedLevelConfidence,
@@ -234,10 +234,35 @@ export const ExtractCV: React.FC = () => {
         growth_potential: extractedGrowthPotential,
         growth_reasoning: extractedGrowthReasoning,
         recommended_paths: extractedRecommendedPaths,
-        interview_questions: extractedInterviewQuestions
-      });
+        interview_questions: extractedInterviewQuestions,
+      };
 
-      setSuccessMsg('Candidate saved successfully to Sysco HR library!');
+      // The extract endpoint surfaced a duplicate to the user; if they kept
+      // going, route the save to PUT against the existing record rather than
+      // letting POST fail with 409.
+      if (duplicateWarning && duplicateWarning.id) {
+        await api.put(`/api/cv/candidates/${duplicateWarning.id}`, payload);
+        setSuccessMsg(`Existing candidate "${duplicateWarning.full_name || extractedName}" updated.`);
+      } else {
+        try {
+          await api.post('/api/cv/candidates', payload);
+          setSuccessMsg('Candidate saved successfully to Sysco HR library!');
+        } catch (e) {
+          if (e instanceof ApiError && e.status === 409) {
+            const existingId = e.detail && typeof e.detail === 'object' ? e.detail.existing_id : null;
+            const existingName = e.detail && typeof e.detail === 'object' ? e.detail.existing_full_name : null;
+            if (existingId) {
+              await api.put(`/api/cv/candidates/${existingId}`, payload);
+              setSuccessMsg(`Existing candidate "${existingName || extractedName}" updated.`);
+            } else {
+              throw e;
+            }
+          } else {
+            throw e;
+          }
+        }
+      }
+
       setShowModal(false);
 
       // Reset main form states

@@ -16,6 +16,26 @@ from datetime import datetime
 
 router = APIRouter(prefix="/api/cv", tags=["cv"])
 
+
+def _safe_upload_path(candidate_path: Optional[str]) -> Optional[str]:
+    """Confirm `candidate_path` is inside UPLOAD_DIR. Returns the path unchanged
+    when valid (or empty/None passed through). Raises 400 otherwise.
+
+    Why: cv_file_path is round-tripped through the client, so an attacker could
+    send `/etc/passwd` or the SQLite DB path. Validating against the realpath of
+    UPLOAD_DIR closes path-traversal and symlink-escape into os.remove().
+    """
+    if not candidate_path:
+        return candidate_path
+    upload_root = os.path.realpath(UPLOAD_DIR)
+    target = os.path.realpath(candidate_path)
+    if os.path.commonpath([upload_root, target]) != upload_root:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="cv_file_path must reference a file inside the configured upload directory.",
+        )
+    return target
+
 @router.post("/extract", response_model=Dict[str, Any])
 async def extract_cv_data(
     file: UploadFile = File(...),
@@ -99,54 +119,32 @@ def create_candidate(
     db: Session = Depends(get_db),
     current_user=Depends(get_current_user)
 ):
-    """Saves or updates candidate profile details in the database."""
-    existing = None
+    """Create a new candidate profile.
+
+    Rejects duplicates by email with 409 Conflict, returning the existing
+    candidate's id so the client can choose between updating via
+    PUT /candidates/{id} or creating with a different email. Previously this
+    endpoint silently overwrote on email match, which let concurrent edits
+    clobber each other and lied about resource creation by returning 201.
+    """
     if profile_data.email:
-        existing = db.query(CandidateProfile).filter(CandidateProfile.email == profile_data.email).first()
-        
-    if existing:
-        # Update existing candidate details
-        existing.full_name = profile_data.full_name
-        existing.phone = profile_data.phone
-        existing.location = profile_data.location
-        existing.skills = profile_data.skills
-        existing.specialty_summary = profile_data.specialty_summary
-        existing.suitability_suggestion = profile_data.suitability_suggestion
-        existing.hr_note = profile_data.hr_note
-        existing.is_strong = profile_data.is_strong
-        existing.role_id = profile_data.role_id
-        existing.level_id = profile_data.level_id
-        if profile_data.cv_text:
-            existing.cv_text = profile_data.cv_text
-        if profile_data.cv_file_path:
-            if existing.cv_file_path and existing.cv_file_path != profile_data.cv_file_path:
-                try:
-                    os.remove(existing.cv_file_path)
-                except Exception:
-                    pass
-            existing.cv_file_path = profile_data.cv_file_path
-            
-        # Update or create digital twin
-        if profile_data.predicted_level:
-            twin = existing.digital_twin
-            if not twin:
-                twin = CandidateDigitalTwin(candidate_id=existing.id)
-                db.add(twin)
-            twin.predicted_level = profile_data.predicted_level
-            twin.level_confidence = profile_data.level_confidence
-            twin.predicted_roles = profile_data.predicted_roles
-            twin.strengths_analysis = profile_data.strengths_analysis
-            twin.hidden_skills = profile_data.hidden_skills
-            twin.growth_potential = profile_data.growth_potential
-            twin.growth_reasoning = profile_data.growth_reasoning
-            twin.recommended_paths = profile_data.recommended_paths
-            twin.interview_questions = profile_data.interview_questions
-            twin.updated_at = datetime.utcnow()
-            
-        db.commit()
-        db.refresh(existing)
-        return existing
-        
+        existing = (
+            db.query(CandidateProfile)
+            .filter(CandidateProfile.email == profile_data.email)
+            .first()
+        )
+        if existing:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail={
+                    "message": "A candidate with this email already exists.",
+                    "existing_id": existing.id,
+                    "existing_full_name": existing.full_name,
+                },
+            )
+
+    safe_cv_path = _safe_upload_path(profile_data.cv_file_path)
+
     new_profile = CandidateProfile(
         full_name=profile_data.full_name,
         email=profile_data.email,
@@ -160,13 +158,12 @@ def create_candidate(
         role_id=profile_data.role_id,
         level_id=profile_data.level_id,
         cv_text=profile_data.cv_text or "",
-        cv_file_path=profile_data.cv_file_path or ""
+        cv_file_path=safe_cv_path or "",
     )
     db.add(new_profile)
     db.commit()
     db.refresh(new_profile)
-    
-    # Create digital twin if digital twin fields are provided
+
     if profile_data.predicted_level:
         new_twin = CandidateDigitalTwin(
             candidate_id=new_profile.id,
@@ -178,12 +175,12 @@ def create_candidate(
             growth_potential=profile_data.growth_potential,
             growth_reasoning=profile_data.growth_reasoning,
             recommended_paths=profile_data.recommended_paths,
-            interview_questions=profile_data.interview_questions
+            interview_questions=profile_data.interview_questions,
         )
         db.add(new_twin)
         db.commit()
         db.refresh(new_profile)
-        
+
     return new_profile
 
 @router.get("/candidates", response_model=List[Dict[str, Any]])
@@ -337,6 +334,22 @@ def update_candidate(
         profile.role_id = profile_data.role_id
     if profile_data.level_id is not None:
         profile.level_id = profile_data.level_id
+    if profile_data.cv_text is not None:
+        profile.cv_text = profile_data.cv_text
+    if profile_data.cv_file_path is not None:
+        safe_cv_path = _safe_upload_path(profile_data.cv_file_path)
+        # Best-effort cleanup of the previous file when replacing, but only if
+        # the prior path is itself inside UPLOAD_DIR (defensive: historical rows
+        # may carry an unvalidated path).
+        if profile.cv_file_path and profile.cv_file_path != safe_cv_path:
+            upload_root = os.path.realpath(UPLOAD_DIR)
+            prior = os.path.realpath(profile.cv_file_path)
+            if os.path.exists(prior) and os.path.commonpath([upload_root, prior]) == upload_root:
+                try:
+                    os.remove(prior)
+                except Exception:
+                    pass
+        profile.cv_file_path = safe_cv_path or ""
         
     # Update or create digital twin if fields are provided
     if profile_data.predicted_level is not None:
@@ -372,16 +385,23 @@ def delete_candidate(id: int, db: Session = Depends(get_db), current_user=Depend
     profile = db.query(CandidateProfile).filter(CandidateProfile.id == id).first()
     if not profile:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, 
+            status_code=status.HTTP_404_NOT_FOUND,
             detail="Candidate profile not found."
         )
-        
+
+    # Defensive sandbox check: rows persisted before path validation was added
+    # may carry an arbitrary cv_file_path. Skip removal if the stored path is
+    # not inside UPLOAD_DIR — better to leave a stray file than to delete the
+    # SQLite database or another system file.
     if profile.cv_file_path and os.path.exists(profile.cv_file_path):
-        try:
-            os.remove(profile.cv_file_path)
-        except Exception:
-            pass
-            
+        upload_root = os.path.realpath(UPLOAD_DIR)
+        target = os.path.realpath(profile.cv_file_path)
+        if os.path.commonpath([upload_root, target]) == upload_root:
+            try:
+                os.remove(target)
+            except Exception:
+                pass
+
     db.delete(profile)
     db.commit()
     return

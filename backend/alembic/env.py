@@ -10,13 +10,16 @@ from alembic import context
 # Insert the parent directory to sys.path so we can import 'app' module
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
-# Import database configuration and models
+# Import database configuration and models. Every model must be imported here
+# so that Base.metadata sees it during autogenerate; missing an import silently
+# drops the table from generated migrations (the digital twin bug).
 from app.config import DATABASE_URL
 from app.database import Base
 from app.models.user import User
 from app.models.profile import CandidateProfile
 from app.models.role import Role
 from app.models.level import Level
+from app.models.digital_twin import CandidateDigitalTwin
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.

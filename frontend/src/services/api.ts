@@ -4,6 +4,18 @@ interface RequestOptions extends RequestInit {
   token?: string | null;
 }
 
+export class ApiError extends Error {
+  status: number;
+  detail: any;
+
+  constructor(message: string, status: number, detail: any) {
+    super(message);
+    this.name = 'ApiError';
+    this.status = status;
+    this.detail = detail;
+  }
+}
+
 async function request<T>(path: string, options: RequestOptions = {}): Promise<T> {
   const token = localStorage.getItem('token');
   const headers = new Headers(options.headers || {});
@@ -23,14 +35,22 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
   });
 
   if (!response.ok) {
+    let detail: any = null;
     let errorMessage = 'An error occurred';
     try {
       const errorJson = await response.json();
-      errorMessage = errorJson.detail || errorMessage;
+      detail = errorJson.detail ?? null;
+      // FastAPI returns `detail` as either a string or a structured object.
+      // Stringify object details so legacy callers reading `.message` still work.
+      if (typeof detail === 'string') {
+        errorMessage = detail;
+      } else if (detail && typeof detail === 'object' && 'message' in detail) {
+        errorMessage = String(detail.message);
+      }
     } catch {
-      // response text is not JSON
+      // response body is not JSON
     }
-    throw new Error(errorMessage);
+    throw new ApiError(errorMessage, response.status, detail);
   }
 
   if (response.status === 204) {

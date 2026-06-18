@@ -1,3 +1,5 @@
+import secrets
+
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
@@ -7,6 +9,11 @@ from app.main import app
 from app.models.user import User
 from app.services.auth_service import get_password_hash
 from sqlalchemy.pool import StaticPool
+
+# Test-only credentials. Password is regenerated per test session so the source
+# tree never carries a known-good login for the seeded HR account.
+TEST_HR_EMAIL = "hr-test@example.com"
+TEST_HR_PASSWORD = secrets.token_urlsafe(24)
 
 # Create isolated test database (using StaticPool for SQLite in-memory sharing)
 SQLALCHEMY_DATABASE_URL = "sqlite:///:memory:"
@@ -19,14 +26,12 @@ TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engin
 
 @pytest.fixture(scope="function")
 def db_session():
-    """Generates database schema, seeds the static HR user, and opens a session."""
+    """Generates database schema, seeds the test HR user, and opens a session."""
     Base.metadata.create_all(bind=engine)
     db = TestingSessionLocal()
     try:
-        # Seed test HR user
-        hr_email = "sapuni.m@sysco-hr.com"
-        hashed_pwd = get_password_hash("sapuni@123")
-        db.add(User(email=hr_email, hashed_password=hashed_pwd))
+        hashed_pwd = get_password_hash(TEST_HR_PASSWORD)
+        db.add(User(email=TEST_HR_EMAIL, hashed_password=hashed_pwd))
         db.commit()
         yield db
     finally:
@@ -47,13 +52,10 @@ def client(db_session):
     app.dependency_overrides.clear()
 
 def test_static_user_login(client):
-    """Verify login with static HR account succeeds."""
+    """Verify login with the seeded HR account succeeds."""
     response = client.post(
         "/api/auth/login",
-        json={
-            "email": "sapuni.m@sysco-hr.com",
-            "password": "sapuni@123"
-        }
+        json={"email": TEST_HR_EMAIL, "password": TEST_HR_PASSWORD},
     )
     assert response.status_code == 200
     token_data = response.json()
@@ -64,10 +66,7 @@ def test_login_incorrect_password(client):
     """Verify login with incorrect password returns 401 Unauthorized."""
     response = client.post(
         "/api/auth/login",
-        json={
-            "email": "sapuni.m@sysco-hr.com",
-            "password": "wrongpassword"
-        }
+        json={"email": TEST_HR_EMAIL, "password": "wrongpassword"},
     )
     assert response.status_code == 401
     assert response.json()["detail"] == "Incorrect email or password"
@@ -76,10 +75,7 @@ def test_login_invalid_email(client):
     """Verify login with unregistered email returns 401 Unauthorized."""
     response = client.post(
         "/api/auth/login",
-        json={
-            "email": "nonexistent@sysco-hr.com",
-            "password": "sapuni@123"
-        }
+        json={"email": "nonexistent@example.com", "password": TEST_HR_PASSWORD},
     )
     assert response.status_code == 401
 
@@ -87,17 +83,14 @@ def test_current_user_me(client):
     """Verify current user profile endpoint using active JWT token."""
     r_login = client.post(
         "/api/auth/login",
-        json={
-            "email": "sapuni.m@sysco-hr.com",
-            "password": "sapuni@123"
-        }
+        json={"email": TEST_HR_EMAIL, "password": TEST_HR_PASSWORD},
     )
     token = r_login.json()["access_token"]
-    
+
     r_me = client.get(
         "/api/auth/me",
-        headers={"Authorization": f"Bearer {token}"}
+        headers={"Authorization": f"Bearer {token}"},
     )
     assert r_me.status_code == 200
     me_data = r_me.json()
-    assert me_data["email"] == "sapuni.m@sysco-hr.com"
+    assert me_data["email"] == TEST_HR_EMAIL

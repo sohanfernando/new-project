@@ -1,40 +1,38 @@
+import os
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from app.database import engine, Base, SessionLocal
+from app.database import SessionLocal
 from app.routers import auth, cv, roles, levels
 from app.models.user import User
 from app.models.role import Role
 from app.models.level import Level
-from app.models.digital_twin import CandidateDigitalTwin
 from app.services.auth_service import get_password_hash
-from sqlalchemy import text
 
-# Initialize tables
-Base.metadata.create_all(bind=engine)
+# Schema is now owned by Alembic — run `alembic upgrade head` (or `alembic
+# stamp head` on an existing DB) before starting the app. Importing
+# Base.metadata.create_all here would silently mask migration drift.
 
 def seed_database():
     """Seed the static HR account and default category entries on startup."""
     db = SessionLocal()
     try:
-        # Check and add 'order' column to roles and levels tables if they don't exist
-        for table in ["roles", "levels"]:
-            try:
-                db.execute(text(f"SELECT `order` FROM `{table}` LIMIT 1"))
-            except Exception:
-                db.rollback()
-                print(f"Altering table {table} to add 'order' column...")
-                db.execute(text(f"ALTER TABLE `{table}` ADD COLUMN `order` INT NOT NULL DEFAULT 0"))
-                db.commit()
-
         # Seed static HR User
-        hr_email = "sapuni.m@sysco-hr.com"
+        hr_email = os.getenv("HR_SEED_EMAIL", "sapuni.m@sysco-hr.com")
         hr_user = db.query(User).filter(User.email == hr_email).first()
         if not hr_user:
-            hashed_pwd = get_password_hash("sapuni@123")
-            new_user = User(email=hr_email, hashed_password=hashed_pwd, full_name="Sapuni Mawalage")
-            db.add(new_user)
-            db.commit()
-            print(f"Database Seeded: Created HR User {hr_email} (Sapuni Mawalage)")
+            hr_password = os.getenv("HR_SEED_PASSWORD")
+            if not hr_password:
+                print(
+                    "Skipping HR user seed: HR_SEED_PASSWORD env var is not set. "
+                    "Set it to provision the initial HR account."
+                )
+            else:
+                hashed_pwd = get_password_hash(hr_password)
+                new_user = User(email=hr_email, hashed_password=hashed_pwd, full_name="Sapuni Mawalage")
+                db.add(new_user)
+                db.commit()
+                print(f"Database Seeded: Created HR User {hr_email} (Sapuni Mawalage)")
         else:
             # Ensure full_name is updated
             if not hr_user.full_name or hr_user.full_name != "Sapuni Mawalage":
